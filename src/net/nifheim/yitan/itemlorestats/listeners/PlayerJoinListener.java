@@ -2,8 +2,19 @@ package net.nifheim.yitan.itemlorestats.listeners;
 
 import java.io.File;
 import java.io.IOException;
+import java.sql.Connection;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import net.nifheim.beelzebu.rpgcore.utils.StatsSaveAPI;
 import net.nifheim.yitan.itemlorestats.Main;
+import net.nifheim.yitan.itemlorestats.PlayerStats;
+import org.bukkit.Bukkit;
+
 import org.bukkit.configuration.InvalidConfigurationException;
+import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -12,12 +23,21 @@ import org.bukkit.event.player.PlayerJoinEvent;
 
 public class PlayerJoinListener implements Listener {
 
+    Main plugin;
+    File mysqlFile;
+    FileConfiguration sqlconf;
+
     @EventHandler
     public void onPlayerJoin(PlayerJoinEvent event) {
         final Player playerFinal = event.getPlayer();
+
         Main.plugin.getServer().getScheduler().runTaskLaterAsynchronously(Main.plugin, () -> {
+            PlayerStats ps = new PlayerStats(playerFinal);
+            ps.UpdateAll();
+            Main.plugin.playersStats.put(playerFinal.getUniqueId(), ps);
             if (!new File(Main.plugin.getDataFolder() + File.separator + "PlayerData" + File.separator + playerFinal.getName() + ".yml").exists()) {
                 try {
+
                     Main.plugin.PlayerDataConfig = new YamlConfiguration();
 
                     Main.plugin.updateHealth(playerFinal);
@@ -35,7 +55,7 @@ public class PlayerJoinListener implements Listener {
                 try {
                     Main.plugin.PlayerDataConfig = new YamlConfiguration();
                     Main.plugin.PlayerDataConfig.load(new File(Main.plugin.getDataFolder() + File.separator + "PlayerData" + File.separator + playerFinal.getName() + ".yml"));
-
+                    ps.manaCurrent = Main.plugin.PlayerDataConfig.getDouble("extra.mana");
                     playerFinal.setMaxHealth(Main.plugin.PlayerDataConfig.getDouble("extra.maxHealth"));
                     playerFinal.setHealth(Main.plugin.PlayerDataConfig.getDouble("extra.logoutHealth"));
                     playerFinal.setFoodLevel(Main.plugin.PlayerDataConfig.getInt("extra.hunger"));
@@ -59,6 +79,38 @@ public class PlayerJoinListener implements Listener {
 
             Main.plugin.updateHealth(playerFinal);
             Main.plugin.updatePlayerSpeed(playerFinal);
+        }, 5L);
+        //plugin.activateEnchant.onJoin(playerFinal);
+
+        // SQL Stats
+        sqlconf = YamlConfiguration.loadConfiguration(plugin.mysqlFile);
+        String prefix = sqlconf.getString("MySQL.Prefix");
+        Bukkit.getServer().getScheduler().runTaskLaterAsynchronously(Main.getInstance(), () -> {
+            try {
+                Player p = event.getPlayer();
+                String name;
+                name = p.getUniqueId().toString();
+
+                Connection c = plugin.mysql.getConnection();
+                Statement check = c.createStatement();
+                ResultSet res = check.executeQuery("SELECT uuid FROM " + prefix + "Data WHERE uuid = '" + name + "';");
+                if (!res.next()) {
+                    Statement update = c.createStatement();
+                    update.executeUpdate("INSERT INTO " + prefix + "Characters VALUES ('null, " + name + "', '" + p.getName() + "', 20, 1, 100, 0, 0, 0, 0);");
+                    StatsSaveAPI.setAllStats(p);
+                } else {
+                    Statement update = c.createStatement();
+                    //update.executeUpdate("UPDATE " + prefix + "Data SET nick = " + p.getName() + " WHERE uuid = '" + name + "';");
+                    StatsSaveAPI.setAllStats(p);
+                }
+
+            } catch (SQLException ex) {
+                if (ex.getSQLState().equals("closed")) {
+                    Logger.getLogger(PlayerJoinListener.class.getName()).log(Level.WARNING, "Seems that the database connection is closed.");
+                } else {
+                    Logger.getLogger(PlayerJoinListener.class.getName()).log(Level.WARNING, "Something was wrong executing this query, the error code is: " + ex.getErrorCode(), ex.getCause());
+                }
+            }
         }, 5L);
     }
 }

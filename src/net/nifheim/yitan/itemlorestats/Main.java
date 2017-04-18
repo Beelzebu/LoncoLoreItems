@@ -1,21 +1,12 @@
 package net.nifheim.yitan.itemlorestats;
 
-import be.maximvdw.placeholderapi.PlaceholderAPI;
 import net.nifheim.yitan.loncoloreitems.DamageFix;
 import net.nifheim.yitan.loncoloreitems.EventListener;
 import net.nifheim.yitan.loncoloreitems.MVdWPlaceholderAPIHook;
+import net.nifheim.yitan.loncoloremagics.SpellListeners;
+import net.nifheim.yitan.itemlorestats.Commands.*;
 
-import net.nifheim.yitan.itemlorestats.Commands.CreateLore_Com;
-import net.nifheim.yitan.itemlorestats.Commands.CustomMaterial_Com;
-import net.nifheim.yitan.itemlorestats.Commands.Export_Com;
-import net.nifheim.yitan.itemlorestats.Commands.Give_Com;
-import net.nifheim.yitan.itemlorestats.Commands.Lore_Com;
-import net.nifheim.yitan.itemlorestats.Commands.Name_Com;
-import net.nifheim.yitan.itemlorestats.Commands.Repair_Com;
-
-import net.nifheim.yitan.itemlorestats.Damage.DamageSystem;
-import net.nifheim.yitan.itemlorestats.Damage.EnvironmentalDamage;
-import net.nifheim.yitan.itemlorestats.Damage.PotionListener;
+import net.nifheim.yitan.itemlorestats.Damage.*;
 
 import net.nifheim.yitan.itemlorestats.Durability.Durability;
 
@@ -26,49 +17,39 @@ import net.nifheim.yitan.itemlorestats.ItemUpgrading.PlayerLevelEvents;
 
 import net.nifheim.yitan.itemlorestats.Misc.SpigotStatCapWarning;
 import net.nifheim.yitan.itemlorestats.Misc.WriteDefaultFiles;
-
+import net.nifheim.yitan.itemlorestats.Repair.RepairEvents;
+import net.nifheim.yitan.itemlorestats.Util.*;
 import net.nifheim.yitan.itemlorestats.Util.InvSlot.GetSlots;
-import net.nifheim.yitan.itemlorestats.Util.Util_ArmourWeight;
-import net.nifheim.yitan.itemlorestats.Util.Util_Citizens;
-import net.nifheim.yitan.itemlorestats.Util.Util_Colours;
-import net.nifheim.yitan.itemlorestats.Util.Util_EntityManager;
-import net.nifheim.yitan.itemlorestats.Util.Util_Format;
-import net.nifheim.yitan.itemlorestats.Util.Util_GetResponse;
-import net.nifheim.yitan.itemlorestats.Util.Util_Random;
-import net.nifheim.yitan.itemlorestats.Util.Util_Vault;
-import net.nifheim.yitan.itemlorestats.Util.Util_WorldGuard;
 
 import net.citizensnpcs.Citizens;
 import com.sk89q.worldguard.bukkit.WorldGuardPlugin;
-import com.zettelnet.armorweight.ArmorWeightPlugin;
 import net.milkbowl.vault.Vault;
 
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.sql.SQLException;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.UUID;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import net.nifheim.beelzebu.rpgcore.enchants.ActivateEnchant;
+import net.nifheim.beelzebu.rpgcore.utils.MySQL;
+import net.nifheim.beelzebu.rpgcore.utils.PlaceholderAPI;
+import net.nifheim.beelzebu.rpgcore.utils.StatsSaveAPI;
 
-import net.nifheim.yitan.itemlorestats.listeners.CreatureSpawnListener;
-import net.nifheim.yitan.itemlorestats.listeners.EnchantItemListener;
-import net.nifheim.yitan.itemlorestats.listeners.EntityRegainHealthListener;
-import net.nifheim.yitan.itemlorestats.listeners.GamemodeChangeListener;
-import net.nifheim.yitan.itemlorestats.listeners.InventoryClickListener;
-import net.nifheim.yitan.itemlorestats.listeners.InventoryDragListener;
-import net.nifheim.yitan.itemlorestats.listeners.PlayerChangeWorldListener;
-import net.nifheim.yitan.itemlorestats.listeners.PlayerDeathListener;
-import net.nifheim.yitan.itemlorestats.listeners.PlayerDropItemListener;
-import net.nifheim.yitan.itemlorestats.listeners.PlayerExpChangeListener;
-import net.nifheim.yitan.itemlorestats.listeners.PlayerItemHeldListener;
-import net.nifheim.yitan.itemlorestats.listeners.PlayerJoinListener;
-import net.nifheim.yitan.itemlorestats.listeners.PlayerPickupItemListener;
-import net.nifheim.yitan.itemlorestats.listeners.PlayerQuitListener;
-import net.nifheim.yitan.itemlorestats.listeners.PlayerRespawnListener;
+import net.nifheim.yitan.itemlorestats.listeners.*;
 
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
+import org.bukkit.boss.BossBar;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.ConsoleCommandSender;
@@ -84,14 +65,26 @@ import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.PluginManager;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
+import org.bukkit.scheduler.BukkitTask;
 
 public class Main extends org.bukkit.plugin.java.JavaPlugin {
 
-    public static Main plugin;
+    MySQL mysqlc;
 
-    private FileConfiguration config;
-    public final ConsoleCommandSender console = Bukkit.getConsoleSender();
-    public String rep;
+    public static Main plugin;
+    public Main instance;
+    public static final ConsoleCommandSender console = Bukkit.getConsoleSender();
+    public static String rep;
+    public MySQL mysql = new MySQL(this);
+    private PlaceholderAPI placeholderAPI;
+    // Files
+    private final File messagesFile = new File(getDataFolder(), "messages.yml");
+    private final FileConfiguration messages = YamlConfiguration.loadConfiguration(messagesFile);
+    public File mysqlFile = new File(getDataFolder(), "MySQL.yml");
+    private final FileConfiguration mysqlf = YamlConfiguration.loadConfiguration(mysqlFile);
+    private final int checkdb = mysqlf.getInt("MySQL.Connection Interval") * 1200;
+
+    public ActivateEnchant activateEnchant;
 
     public FileConfiguration PlayerDataConfig;
 
@@ -102,6 +95,8 @@ public class Main extends org.bukkit.plugin.java.JavaPlugin {
     public HashMap<String, Long> internalCooldowns = new HashMap();
     public HashMap<String, Boolean> combatLogVisible = new HashMap();
     public HashMap<String, Double> setBonusesModifiers = new HashMap();
+    public HashMap<UUID, PlayerStats> playersStats = new HashMap();
+    public HashMap<Player, BossBar> manaBar = new HashMap();
 
     public DamageFix damagefix;
     public EventListener eventlistener;
@@ -122,7 +117,6 @@ public class Main extends org.bukkit.plugin.java.JavaPlugin {
     Util_Format util_Format = new Util_Format();
     public Util_GetResponse util_GetResponse = new Util_GetResponse();
     Util_Random util_Random = new Util_Random();
-    Util_ArmourWeight util_ArmourWeight = new Util_ArmourWeight(plugin);
 
     SpigotStatCapWarning spigotStatCapWarning = new SpigotStatCapWarning();
 
@@ -134,19 +128,25 @@ public class Main extends org.bukkit.plugin.java.JavaPlugin {
     Name_Com name_Com = new Name_Com();
     Repair_Com repair_Com = new Repair_Com();
 
+    BukkitTask fastTasks;
+
+    public static Main getInstance() {
+        return plugin;
+    }
+
     @Override
     public void onEnable() {
-        checkDependencies();
-
+        this.loadManagers();
         Locale.setDefault(Locale.ROOT);
 
         PluginManager plma = getServer().getPluginManager();
-        /*
-        New events clases
-         */
+
+        //New events clases
+        plma.registerEvents(new SpellListeners(), this);
         plma.registerEvents(new CreatureSpawnListener(), this);
         plma.registerEvents(new EnchantItemListener(), this);
         plma.registerEvents(new EntityRegainHealthListener(), this);
+        plma.registerEvents(new EntityShotBowListener(), this);
         plma.registerEvents(new GamemodeChangeListener(), this);
         plma.registerEvents(new InventoryClickListener(), this);
         plma.registerEvents(new InventoryDragListener(), this);
@@ -154,24 +154,24 @@ public class Main extends org.bukkit.plugin.java.JavaPlugin {
         plma.registerEvents(new PlayerDeathListener(), this);
         plma.registerEvents(new PlayerDropItemListener(), this);
         plma.registerEvents(new PlayerExpChangeListener(), this);
+        plma.registerEvents(new PlayerInteractEntityListener(), this);
+        plma.registerEvents(new PlayerInteractListener(), this);
         plma.registerEvents(new PlayerItemHeldListener(), this);
         plma.registerEvents(new PlayerJoinListener(), this);
         plma.registerEvents(new PlayerPickupItemListener(), this);
         plma.registerEvents(new PlayerQuitListener(), this);
         plma.registerEvents(new PlayerRespawnListener(), this);
-        /*
-        End new event clases
-         */
+        //End new event clases
+
         plma.registerEvents(new net.nifheim.yitan.itemlorestats.Crafting.AddedStats(), this);
         plma.registerEvents(new DamageSystem(this), this);
         plma.registerEvents(new net.nifheim.yitan.itemlorestats.Durability.DurabilityEvents(), this);
         plma.registerEvents(new EnvironmentalDamage(), this);
-        plma.registerEvents(new EntityDrops(), this);
         plma.registerEvents(new PotionListener(), this);
         plma.registerEvents(new InteractEvents(), this);
         plma.registerEvents(new PlayerLevelEvents(), this);
-        plma.registerEvents(new net.nifheim.yitan.itemlorestats.Repair.RepairEvents(), this);
-
+        plma.registerEvents(new RepairEvents(), this);
+        plma.registerEvents(new MerchantClickListener(), this);
         plugin = this;
 
         writeDefaultFiles.checkExistence();
@@ -186,26 +186,106 @@ public class Main extends org.bukkit.plugin.java.JavaPlugin {
 
         this.spigotStatCapWarning.updateSpigotValues();
 
+        fastTasks = new MainFastRunnable(Main.getInstance()).runTaskTimer(Main.getInstance(), 20, 20);
+
+        for (Player player : Bukkit.getOnlinePlayers()) {
+            if (new File(Main.plugin.getDataFolder() + File.separator + "PlayerData" + File.separator + player.getName() + ".yml").exists()) {
+                try {
+                    PlayerStats ps = Main.plugin.getPlayerStats(player);
+                    Main.plugin.PlayerDataConfig = new YamlConfiguration();
+                    Main.plugin.PlayerDataConfig.load(new File(Main.plugin.getDataFolder() + File.separator + "PlayerData" + File.separator + player.getName() + ".yml"));
+                    ps.manaCurrent = Main.plugin.PlayerDataConfig.getDouble("extra.mana");
+                } catch (IOException | InvalidConfigurationException e) {
+                    System.out.println("*********** Failed to load player data for " + player.getName() + " when logging in! ***********");
+                }
+            }
+        }
+        for (Player player : Bukkit.getOnlinePlayers()) {
+            try {
+                StatsSaveAPI.setAllStats(player);
+            } catch (SQLException ex) {
+                Logger.getLogger(Main.class.getName()).log(Level.SEVERE, "Can't set the stats to the player " + player.getName() + " the error code is: " + ex.getErrorCode(), ex.getCause());
+            }
+        }
     }
 
     @Override
     public void onDisable() {
+        Bukkit.getScheduler().cancelTasks(this);
+        for (Map.Entry<Player, BossBar> m : manaBar.entrySet()) {
+            m.getValue().removeAll();
+        }
+        for (Player player : Bukkit.getOnlinePlayers()) {
+            if (new File(Main.plugin.getDataFolder() + File.separator + "PlayerData" + File.separator + player.getName() + ".yml").exists()) {
+                try {
+                    PlayerStats ps = Main.plugin.getPlayerStats(player);
+                    Main.plugin.PlayerDataConfig = new YamlConfiguration();
+                    Main.plugin.PlayerDataConfig.load(new File(Main.plugin.getDataFolder() + File.separator + "PlayerData" + File.separator + player.getName() + ".yml"));
+                    Main.plugin.PlayerDataConfig.set("extra.logoutHealth", Math.round(player.getHealth()));
+                    Main.plugin.PlayerDataConfig.set("extra.maxHealth", Math.round(player.getMaxHealth()));
+                    Main.plugin.PlayerDataConfig.set("extra.hunger", player.getFoodLevel());
+                    Main.plugin.PlayerDataConfig.set("extra.xp", player.getExp());
+                    Main.plugin.PlayerDataConfig.set("extra.level", player.getLevel());
+                    Main.plugin.PlayerDataConfig.set("extra.mana", ps.manaCurrent);
+                    Main.plugin.PlayerDataConfig.set("extra.combatLogVisible", Main.plugin.combatLogVisible.get(player.getName()));
+                    Main.plugin.PlayerDataConfig.save(Main.plugin.getDataFolder() + File.separator + "PlayerData" + File.separator + player.getName() + ".yml");
+                } catch (IOException | InvalidConfigurationException e) {
+                    System.out.println("*********** Failed to save player data for " + player.getName() + " when logging out! ***********");
+                }
+            }
+        }
+
         console.sendMessage(String.format("[%s] Disabled Version %s", new Object[]{
             getDescription().getName(), getDescription().getVersion()
         }));
     }
 
-    public static Main getPlugin() {
-        return plugin;
+    public void loadManagers() {
+        if (!messagesFile.exists()) {
+            copy(getResource("messages.yml"), messagesFile);
+        }
+        if (!mysqlFile.exists()) {
+            copy(getResource("MySQL.yml"), mysqlFile);
+        }
+        checkDependencies();
+        mysql.SQLConnection();
+        Bukkit.getServer().getScheduler().runTaskTimerAsynchronously(this, () -> {
+            console.sendMessage(plugin.rep("%prefix% Checking the database connection ..."));
+            if (mysql.getConnection() == null) {
+                console.sendMessage(plugin.rep("%prefix% The database connection is null, reconnecting ..."));
+            } else {
+                console.sendMessage(plugin.rep("%prefix% The connection to the database is still active."));
+            }
+        }, 0L, checkdb);
+        
     }
 
     public void checkDependencies() {
         if (Bukkit.getServer().getPluginManager().getPlugin("ActionBarAPI") != null) {
-            console.sendMessage(rep("&8[&cLoncoLoreItems&8] &7Succesfully found and hooked into ActionBarAPI."));
+            console.sendMessage(rep("&8[&cLoncoLoreItems&8] &7Successfully found and hooked into ActionBarAPI."));
         } else {
             console.sendMessage(rep("&8[&cLoncoLoreItems&8] &7Unable to find ActionBarAPI, you need this API to run this plugin ..."));
             console.sendMessage(rep("                 &7You can download this in &chttps://www.spigotmc.org/resources/1315/"));
             Bukkit.getServer().getPluginManager().disablePlugin(this);
+        }
+        if (Bukkit.getServer().getPluginManager().getPlugin("EffectLib") != null) {
+            console.sendMessage(rep("&8[&cLoncoLoreItems&8] &7Successfully found and hooked into EffectLib."));
+        } else {
+            console.sendMessage(rep("&8[&cLoncoLoreItems&8] &7Unable to find EffectLib, you need this API to run this plugin ..."));
+            Bukkit.getServer().getPluginManager().disablePlugin(this);
+        }
+        if (Bukkit.getServer().getPluginManager().getPlugin("PlaceholderAPI") != null) {
+            placeholderAPI = new PlaceholderAPI(this);
+            placeholderAPI.hook();
+            console.sendMessage(rep("&8[&cLoncoLoreItems&8] &7Successfully found and hooked into PlaceholderAPI."));
+        } else {
+            console.sendMessage(rep("&8[&cLoncoLoreItems&8] &7Unable to find PlaceholderAPI."));
+        }
+        if (Bukkit.getServer().getPluginManager().getPlugin("MVdWPlaceholderAPI") != null) {
+            MVdWPlaceholderAPIHook.hook(this);
+            console.sendMessage(rep("&8[&cLoncoLoreItems&8] &7Successfully found and hooked into MVdWPlaceholderAPI."));
+        } else {
+            console.sendMessage(rep("&8[&cLoncoLoreItems&8] &7Unable to find MVdWPlaceholderAPI."));
         }
         if (getWorldGuard() != null) {
             console.sendMessage(rep("&8[&cLoncoLoreItems&8] &7Successfully found and hooked into WorldGuard."));
@@ -222,12 +302,6 @@ public class Main extends org.bukkit.plugin.java.JavaPlugin {
         } else {
             console.sendMessage(rep("&8[&cLoncoLoreItems&8] &7Unable to find Citizens!"));
         }
-        if (Bukkit.getServer().getPluginManager().getPlugin("MVdWPlaceholderAPI") != null) {
-            MVdWPlaceholderAPIHook.hook(this);
-            console.sendMessage(rep("&8[&cLoncoLoreItems&8] &7Succesfully found and hooked into MVdWPlaceholderAPI."));
-        } else {
-            console.sendMessage(rep("&8[&cLoncoLoreItems&8] &7Unable to find MVdWPlaceholderAPI."));
-        }
     }
 
     public static boolean isInteger(String str) {
@@ -237,17 +311,6 @@ public class Main extends org.bukkit.plugin.java.JavaPlugin {
         } catch (NumberFormatException nfe) {
         }
         return false;
-    }
-
-    public ArmorWeightPlugin getArmourWeight() {
-        Plugin ArmorWeightPlugin = Bukkit.getServer().getPluginManager().getPlugin("ArmorWeight");
-
-        if ((ArmorWeightPlugin == null) || (!(ArmorWeightPlugin instanceof ArmorWeightPlugin))) {
-            return null;
-        }
-
-        this.util_ArmourWeight = new Util_ArmourWeight(plugin);
-        return (ArmorWeightPlugin) ArmorWeightPlugin;
     }
 
     public WorldGuardPlugin getWorldGuard() {
@@ -384,11 +447,7 @@ public class Main extends org.bukkit.plugin.java.JavaPlugin {
     }
 
     public boolean isSword(ItemStack item) {
-        if ((item.equals(Material.WOOD_SWORD)) || (item.equals(Material.STONE_SWORD)) || (item.equals(Material.IRON_SWORD)) || (item.equals(Material.GOLD_SWORD)) || (item.equals(Material.DIAMOND_SWORD))) {
-            return true;
-        }
-
-        return false;
+        return (item.equals(Material.WOOD_SWORD)) || (item.equals(Material.STONE_SWORD)) || (item.equals(Material.IRON_SWORD)) || (item.equals(Material.GOLD_SWORD)) || (item.equals(Material.DIAMOND_SWORD));
     }
 
     public boolean isHoe(ItemStack item) {
@@ -814,7 +873,40 @@ public class Main extends org.bukkit.plugin.java.JavaPlugin {
         }
     }
 
+    public void copy(InputStream in, File file) {
+        try {
+            OutputStream out = new FileOutputStream(file);
+            byte[] buf = new byte[1024];
+            int len;
+            while ((len = in.read(buf)) > 0) {
+                out.write(buf, 0, len);
+            }
+            out.close();
+            in.close();
+        } catch (Exception e) {
+            Logger.getLogger(Main.class.getName()).log(Level.SEVERE, "Can't copy the file " + file.getName() + " to the plugin data folder.", e.getCause());
+        }
+    }
+
     public String rep(String str) {
-        return str.replaceAll("&", "§");
+        return str
+                .replaceAll("%prefix%", getMessages().getString("Prefix"))
+                .replaceAll("&", "§");
+    }
+
+    public FileConfiguration getMessages() {
+        return messages;
+    }
+
+    public PlayerStats getPlayerStats(Player player) {
+
+        if (playersStats.containsKey(player.getUniqueId())) {
+            return playersStats.get(player.getUniqueId());
+        } else {
+            PlayerStats ps = new PlayerStats(player);
+            ps.UpdateAll();
+            playersStats.put(player.getUniqueId(), ps);
+            return ps;
+        }
     }
 }

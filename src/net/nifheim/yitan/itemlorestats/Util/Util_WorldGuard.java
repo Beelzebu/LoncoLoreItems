@@ -1,7 +1,11 @@
 package net.nifheim.yitan.itemlorestats.Util;
 
 import net.nifheim.yitan.itemlorestats.Main;
+
+import com.sk89q.worldguard.LocalPlayer;
 import com.sk89q.worldguard.protection.ApplicableRegionSet;
+import com.sk89q.worldguard.protection.flags.DefaultFlag;
+import com.sk89q.worldguard.protection.flags.StateFlag;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 
 import org.bukkit.Location;
@@ -16,30 +20,31 @@ public class Util_WorldGuard {
     public Util_WorldGuard(Main instance) {
         this.main = instance;
     }
-
-    /*    public boolean playerInPVPRegion(Player player) {
-    //ApplicableRegionSet set = WGBukkit.getRegionManager(player.getWorld()).getApplicableRegions(player.getLocation());
-    //ApplicableRegionSet set = ItemLoreStats.plugin.getWorldGuard().getRegionManager(player.getWorld()).getApplicableRegions(player.getLocation());
-    try {
-    ApplicableRegionSet set = (ItemLoreStats.plugin.getWorldGuard().getRegionManager(player.getWorld()).getApplicableRegions(player.getLocation()));
-    if (set.allows(com.sk89q.worldguard.protection.flags.DefaultFlag.PVP)) {
-    return true;
+    public boolean playersInPvPRegion(Player player1,Player player2) {
+    	if (playerInPVPRegion(player1) && playerInPVPRegion(player2)) 
+    	    return true;
+    	else
+    		return false;
     }
-    } catch (Exception e) {
-    
-    }
-    
-    return false;
-    }*/
 
-    /*    public boolean playerInInvincibleRegion(Player player) {
-    ApplicableRegionSet set = ItemLoreStats.plugin.getWorldGuard().getRegionManager(player.getWorld()).getApplicableRegions(player.getLocation());
+    public boolean playerInPVPRegion(Player player) {
+    	ApplicableRegionSet set = (Main.plugin.getWorldGuard().getRegionManager(player.getWorld()).getApplicableRegions(player.getLocation()));
+    	LocalPlayer localPlayer = Main.plugin.getWorldGuard().wrapPlayer(player);
+    	if (set.queryState(localPlayer, DefaultFlag.PVP)!= StateFlag.State.DENY) {
+    	    return true;
+    	}
+    	else
+    		return false;
+    }
+
+    public boolean playerInInvincibleRegion(Player player) {
+    ApplicableRegionSet set = Main.plugin.getWorldGuard().getRegionManager(player.getWorld()).getApplicableRegions(player.getLocation());
     
     if (set.allows(com.sk89q.worldguard.protection.flags.DefaultFlag.INVINCIBILITY)) {
     return true;
     }
     return false;
-    }*/
+    }
     /*    public boolean entityInLevelRegion(LivingEntity entity) {
     for (ProtectedRegion reg : ItemLoreStats.plugin.getWorldGuard().getRegionManager(entity.getWorld()).getApplicableRegions(entity.getLocation())) {
     if ((reg.getId().toString().toLowerCase().contains("ils_")) || (reg.getId().toString().toLowerCase().contains("itemlorestats_"))) {

@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
 import org.bukkit.command.Command;
@@ -15,6 +16,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
+import org.bukkit.event.block.BlockExpEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.enchantment.PrepareItemEnchantEvent;
 import org.bukkit.event.entity.EntityShootBowEvent;
@@ -36,7 +38,10 @@ import org.bukkit.potion.PotionEffectType;
 import org.bukkit.scheduler.BukkitTask;
 
 import net.nifheim.yitan.itemlorestats.Durability.Durability;
+import net.nifheim.yitan.loncoloremagics.Spell;
+import net.nifheim.yitan.loncoloremagics.SpellsList;
 import net.nifheim.yitan.itemlorestats.Main;
+import net.nifheim.yitan.itemlorestats.PlayerStats;
 
 public class EventListener implements Listener {
 
@@ -46,8 +51,9 @@ public class EventListener implements Listener {
     public HashMap<UUID, Boolean> bowActionControl;
     public HashMap<UUID, Long> shootpower;
     public LoreCraftingStats getlorestrings;
-    public String unknownItem = "Artículo no identificado";
-    public String languageRegex = "[^A-Za-z������������_]";
+    public static String unknownItem = "Artículo no identificado";
+    public static String enchantSlot = Main.getInstance().getMessages().getString("Lores.Enchants.Empty");
+    public static String languageRegex= "[^A-Za-zñÑáéíóúÁÉÍÓÚ_]";
     Main instance;
     Durability durabilityclass = new Durability();
 
@@ -58,6 +64,11 @@ public class EventListener implements Listener {
         this.shootpower = new HashMap<UUID, Long>();
         getlorestrings = new LoreCraftingStats();
         this.instance = instance;
+    }
+    
+    @EventHandler
+    public void onBlockExpEvent(BlockExpEvent event) {
+    	event.setExpToDrop(0);
     }
 
     @EventHandler
@@ -236,12 +247,12 @@ public class EventListener implements Listener {
 
     }
 
-    private ItemStack AddItemLore(ItemStack item, Player player) {
+    public static ItemStack AddItemLore(ItemStack item, Player player) {
 
         return LoreItemMaker.AddItemLore(item, player);
     }
 
-    private ItemStack ClearAndAddItemLore(ItemStack item, Player player) {
+    public static ItemStack ClearAndAddItemLore(ItemStack item, Player player) {
 
         return LoreItemMaker.ClearAndAddItemLore(item, player);
     }
@@ -343,13 +354,29 @@ public class EventListener implements Listener {
                 String enchant = EspecialAtributes.getEnchantGiverPower(item);
                 if (EspecialAtributes.HaveEnchant(itemcliked, enchant)) {
                     player.sendMessage("Este objeto ya posee el encantamiento");
-                } else if (item.getAmount() > 1) {
-                    player.sendMessage("Este objeto solo se puede usar de uno a la vez");
+                } else if (item.getAmount() > 1 && itemcliked.getAmount()>1) {
+                    player.sendMessage("Este objeto solo se puede usar/encantar de uno a la vez");
                 } else {
-                    player.setItemOnCursor(null);
-                    LoreItemMaker.AddCustomEnchant(itemcliked, enchant);
-                    player.sendMessage("Se ha encantado el objeto con " + enchant);
-                    event.setCancelled(true);
+                	boolean enchanted=false;
+                	ItemMeta meta = itemcliked.getItemMeta();
+                	List<String> lores = meta.getLore();
+                	for(String lore:lores){
+                		if(!enchanted && lore.equals(Main.plugin.rep(enchantSlot))){
+                			enchanted=true;
+                            player.setItemOnCursor(null);
+                            lores.set(lores.indexOf(lore), ChatColor.GRAY + enchant);
+                            player.sendMessage("Se ha encantado el objeto con " + enchant);
+                            event.setCancelled(true);
+                		}
+                	}
+                	if(enchanted){
+                		meta.setLore(lores);
+                    	itemcliked.setItemMeta(meta);
+                    	event.setCurrentItem(itemcliked);
+                	}
+                	else{
+                		player.sendMessage("El objeto no tiene ranuras para encantar");
+                	}
                 }
             }
         }
@@ -470,6 +497,15 @@ public class EventListener implements Listener {
                         return true;
                     }
                 }
+                if (args[0].equalsIgnoreCase("stats2")) {
+                    if (sender instanceof Player) {
+                		Player p = (Player) sender;
+                		PlayerStats ps = Main.plugin.getPlayerStats(p);
+                		ps.UpdateAll();
+                		ps.ShowStats();
+                        return true;
+                    }
+                }
                 if (args[0].equalsIgnoreCase("add")) {
                     if (sender instanceof Player && sender.hasPermission("ils.admin")) {
                         if (args.length > 1) {
@@ -524,11 +560,40 @@ public class EventListener implements Listener {
                     }
                     return false;
                 }
+                if (args[0].equalsIgnoreCase("spellbook")) {
+                    if (sender instanceof Player && sender.hasPermission("ils.admin")) {
+                        if (args.length > 1) {
+                        	Spell spell = SpellsList.getSpell(args[1]);
+                        	
+                            if (spell==null) {
+                            	sender.sendMessage("El Echiso no existe");
+                            }
+                            else{
+                            	Player player = (Player) sender;
+                            	ItemStack item = ItemMaker.SpellBook(spell);
+                            	player.getInventory().addItem(item);
+                                return true;
+                            }
+                            return false;
+                        }
+
+                        return false;
+                    }
+                    return false;
+                }
+                if (args[0].equalsIgnoreCase("loreclear")) {
+                	Player player = (Player) sender;
+                	ItemStack item = player.getInventory().getItemInMainHand();
+                    if (item != null && item.hasItemMeta() && item.getItemMeta().hasLore()) {
+                        ItemMeta meta = item.getItemMeta();
+                        meta.setLore(new ArrayList<>());
+                        item.setItemMeta(meta);
+                        return true;
+                    }
+                }
             }
         }
-        if (cmd.getName().equalsIgnoreCase("clearhand")) {
 
-        }
 
         return false;
     }
