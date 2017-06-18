@@ -7,7 +7,6 @@ import java.sql.Statement;
 import net.nifheim.yitan.itemlorestats.Main;
 import net.nifheim.yitan.itemlorestats.PlayerStats;
 import org.bukkit.configuration.file.FileConfiguration;
-import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 
 /**
@@ -16,31 +15,33 @@ import org.bukkit.entity.Player;
  */
 public class StatsSaveAPI {
 
-    private static final Main plugin = Main.getInstance();
-    private static final Connection c = plugin.mysql.getConnection();
-    private static final FileConfiguration sqlfile = YamlConfiguration.loadConfiguration(plugin.mysqlFile);
-    private static final String prefix = sqlfile.getString("MySQL.Prefix");
+    private static final Connection c = MySQL.getConnection();
+    private static final FileConfiguration config = Main.getInstance().getConfig();
+    private static final String prefix = Main.getInstance().getMySQL().prefix;
     private static PlayerStats ps;
 
     public static void saveAllStats(Player p) throws SQLException {
         String name = p.getUniqueId().toString();
+        ps = new PlayerStats(p);
+        double maxhp = ps.healthMax;
+        double hp = ps.healthCurrent;
+        double maxmana = ps.manaMax;
+        double mana = ps.manaCurrent;
 
         Statement check = c.createStatement();
         ResultSet res = check.executeQuery("SELECT * FROM " + prefix + "Characters WHERE uuid ='" + name + "';");
         res.next();
 
-        if (res.getString("uuid") != null) {
-            ps = new PlayerStats(p);
-            double maxhp = ps.healthMax;
-            double hp = ps.healthCurrent;
-            double maxmana = ps.manaMax;
-            double mana = ps.manaCurrent;
+        if (res.next()) {
             Statement update = c.createStatement();
             update.executeUpdate("UPDATE " + prefix + "Characters SET "
                     + "maxhp = " + maxhp + ","
                     + "hp = " + hp + ","
                     + "maxmana = " + maxmana + ","
                     + "mana = " + mana + "WHERE uuid = '" + name + "';");
+        } else {
+            Statement update = c.createStatement();
+            update.executeUpdate("INSERT INTO " + prefix + "Characters VALUES(NULL, '" + name + "', '" + p.getName() + "', " + maxhp + ", " + hp + ", " + maxmana + ", " + mana + ", 0, 0, 0);");
         }
     }
 
@@ -49,9 +50,9 @@ public class StatsSaveAPI {
 
         Statement check = c.createStatement();
         ResultSet res = check.executeQuery("SELECT * FROM " + prefix + "Characters WHERE uuid ='" + name + "';");
-        res.next();
+        //res.next();
 
-        if (res.getString("uuid") != null) {
+        if (res.next()) {
             ps = new PlayerStats(p);
             double maxhp = res.getDouble("maxhp");
             double hp = res.getDouble("hp");

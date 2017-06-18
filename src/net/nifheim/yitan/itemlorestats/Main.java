@@ -1,50 +1,17 @@
 package net.nifheim.yitan.itemlorestats;
 
-import net.nifheim.yitan.loncoloreitems.DamageFix;
-import net.nifheim.yitan.loncoloreitems.EventListener;
-import net.nifheim.yitan.loncoloreitems.MVdWPlaceholderAPIHook;
-import net.nifheim.yitan.loncoloremagics.SpellListeners;
-import net.nifheim.yitan.itemlorestats.Commands.*;
-
-import net.nifheim.yitan.itemlorestats.Damage.*;
-
-import net.nifheim.yitan.itemlorestats.Durability.Durability;
-
-import net.nifheim.yitan.itemlorestats.Interact.InteractEvents;
-
-import net.nifheim.yitan.itemlorestats.ItemUpgrading.ItemUpgrade;
-import net.nifheim.yitan.itemlorestats.ItemUpgrading.PlayerLevelEvents;
-
-import net.nifheim.yitan.itemlorestats.Misc.SpigotStatCapWarning;
-import net.nifheim.yitan.itemlorestats.Misc.WriteDefaultFiles;
-import net.nifheim.yitan.itemlorestats.Repair.RepairEvents;
-import net.nifheim.yitan.itemlorestats.Util.*;
-import net.nifheim.yitan.itemlorestats.Util.InvSlot.GetSlots;
-
-import net.citizensnpcs.Citizens;
-import com.sk89q.worldguard.bukkit.WorldGuardPlugin;
-import net.milkbowl.vault.Vault;
-
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.sql.SQLException;
-
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.UUID;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import net.nifheim.beelzebu.rpgcore.enchants.ActivateEnchant;
-import net.nifheim.beelzebu.rpgcore.utils.MySQL;
-import net.nifheim.beelzebu.rpgcore.utils.PlaceholderAPI;
-import net.nifheim.beelzebu.rpgcore.utils.StatsSaveAPI;
-
-import net.nifheim.yitan.itemlorestats.listeners.*;
 
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
@@ -66,25 +33,58 @@ import org.bukkit.plugin.PluginManager;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import org.bukkit.scheduler.BukkitTask;
+import org.bukkit.scoreboard.Scoreboard;
+
+import com.sk89q.worldguard.bukkit.WorldGuardPlugin;
+import net.citizensnpcs.Citizens;
+import net.milkbowl.vault.Vault;
+
+import net.nifheim.beelzebu.rpgcore.utils.ActionBarAPI;
+import net.nifheim.beelzebu.rpgcore.utils.MySQL;
+import net.nifheim.beelzebu.rpgcore.utils.PlaceholderAPI;
+import net.nifheim.beelzebu.rpgcore.utils.StatsSaveAPI;
+
+import net.nifheim.yitan.itemlorestats.Commands.*;
+import net.nifheim.yitan.itemlorestats.Damage.DamageSystem;
+import net.nifheim.yitan.itemlorestats.Damage.EnvironmentalDamage;
+import net.nifheim.yitan.itemlorestats.Damage.PotionListener;
+import net.nifheim.yitan.itemlorestats.Durability.Durability;
+import net.nifheim.yitan.itemlorestats.Interact.InteractEvents;
+import net.nifheim.yitan.itemlorestats.ItemUpgrading.ItemUpgrade;
+import net.nifheim.yitan.itemlorestats.ItemUpgrading.PlayerLevelEvents;
+import net.nifheim.yitan.itemlorestats.Misc.SpigotStatCapWarning;
+import net.nifheim.yitan.itemlorestats.Misc.WriteDefaultFiles;
+import net.nifheim.yitan.itemlorestats.Repair.RepairEvents;
+import net.nifheim.yitan.itemlorestats.Util.*;
+import net.nifheim.yitan.itemlorestats.Util.InvSlot.GetSlots;
+import net.nifheim.yitan.itemlorestats.listeners.CreatureSpawnListener;
+import net.nifheim.yitan.itemlorestats.listeners.EnchantItemListener;
+import net.nifheim.yitan.itemlorestats.listeners.EntityRegainHealthListener;
+import net.nifheim.yitan.itemlorestats.listeners.EntityShotBowListener;
+import net.nifheim.yitan.itemlorestats.listeners.GamemodeChangeListener;
+import net.nifheim.yitan.itemlorestats.listeners.InventoryClickListener;
+import net.nifheim.yitan.itemlorestats.listeners.InventoryDragListener;
+import net.nifheim.yitan.itemlorestats.listeners.PlayerChangeWorldListener;
+import net.nifheim.yitan.itemlorestats.listeners.*;
+import net.nifheim.yitan.loncoloreitems.DamageFix;
+import net.nifheim.yitan.loncoloreitems.EventListener;
+
+import net.nifheim.yitan.loncoloremagics.SpellListeners;
+import net.nifheim.yitan.skills.SkillListener;
 
 public class Main extends org.bukkit.plugin.java.JavaPlugin {
 
-    MySQL mysqlc;
-
     public static Main plugin;
+    private static MySQL mysql;
     public Main instance;
-    public static final ConsoleCommandSender console = Bukkit.getConsoleSender();
+    private final ConsoleCommandSender console = Bukkit.getConsoleSender();
     public static String rep;
-    public MySQL mysql = new MySQL(this);
     private PlaceholderAPI placeholderAPI;
+    private ActionBarAPI aba;
     // Files
     private final File messagesFile = new File(getDataFolder(), "messages.yml");
-    private final FileConfiguration messages = YamlConfiguration.loadConfiguration(messagesFile);
-    public File mysqlFile = new File(getDataFolder(), "MySQL.yml");
-    private final FileConfiguration mysqlf = YamlConfiguration.loadConfiguration(mysqlFile);
-    private final int checkdb = mysqlf.getInt("MySQL.Connection Interval") * 1200;
-
-    public ActivateEnchant activateEnchant;
+    public static FileConfiguration messages;
+    public static int checkdb;
 
     public FileConfiguration PlayerDataConfig;
 
@@ -128,7 +128,13 @@ public class Main extends org.bukkit.plugin.java.JavaPlugin {
     Name_Com name_Com = new Name_Com();
     Repair_Com repair_Com = new Repair_Com();
 
+    static public Scoreboard scoreboard;
+
     BukkitTask fastTasks;
+
+    public MySQL getMySQL() {
+        return mysql;
+    }
 
     public static Main getInstance() {
         return plugin;
@@ -136,13 +142,22 @@ public class Main extends org.bukkit.plugin.java.JavaPlugin {
 
     @Override
     public void onEnable() {
+
         this.loadManagers();
         Locale.setDefault(Locale.ROOT);
+
+        plugin = this;
+        instance = this;
+
+        mysql = new MySQL();
+        aba = new ActionBarAPI();
+        aba.loadActionBar();
 
         PluginManager plma = getServer().getPluginManager();
 
         //New events clases
         plma.registerEvents(new SpellListeners(), this);
+        plma.registerEvents(new SkillListener(), this);
         plma.registerEvents(new CreatureSpawnListener(), this);
         plma.registerEvents(new EnchantItemListener(), this);
         plma.registerEvents(new EntityRegainHealthListener(), this);
@@ -157,9 +172,9 @@ public class Main extends org.bukkit.plugin.java.JavaPlugin {
         plma.registerEvents(new PlayerInteractEntityListener(), this);
         plma.registerEvents(new PlayerInteractListener(), this);
         plma.registerEvents(new PlayerItemHeldListener(), this);
-        plma.registerEvents(new PlayerJoinListener(), this);
+        plma.registerEvents(new PlayerJoinListener(this), this);
         plma.registerEvents(new PlayerPickupItemListener(), this);
-        plma.registerEvents(new PlayerQuitListener(), this);
+        plma.registerEvents(new PlayerQuitListener(this), this);
         plma.registerEvents(new PlayerRespawnListener(), this);
         //End new event clases
 
@@ -186,121 +201,108 @@ public class Main extends org.bukkit.plugin.java.JavaPlugin {
 
         this.spigotStatCapWarning.updateSpigotValues();
 
-        fastTasks = new MainFastRunnable(Main.getInstance()).runTaskTimer(Main.getInstance(), 20, 20);
+        fastTasks = new MainFastRunnable(Main.getInstance()).runTaskTimer(Main.getInstance(), 10, 10);
 
-        for (Player player : Bukkit.getOnlinePlayers()) {
-            if (new File(Main.plugin.getDataFolder() + File.separator + "PlayerData" + File.separator + player.getName() + ".yml").exists()) {
-                try {
-                    PlayerStats ps = Main.plugin.getPlayerStats(player);
-                    Main.plugin.PlayerDataConfig = new YamlConfiguration();
-                    Main.plugin.PlayerDataConfig.load(new File(Main.plugin.getDataFolder() + File.separator + "PlayerData" + File.separator + player.getName() + ".yml"));
-                    ps.manaCurrent = Main.plugin.PlayerDataConfig.getDouble("extra.mana");
-                } catch (IOException | InvalidConfigurationException e) {
-                    System.out.println("*********** Failed to load player data for " + player.getName() + " when logging in! ***********");
-                }
-            }
-        }
-        for (Player player : Bukkit.getOnlinePlayers()) {
+        Bukkit.getOnlinePlayers().stream().filter((player) -> (new File(Main.plugin.getDataFolder() + File.separator + "PlayerData" + File.separator + player.getName() + ".yml").exists())).forEachOrdered((player) -> {
             try {
+                PlayerStats ps = Main.plugin.getPlayerStats(player);
+                Main.plugin.PlayerDataConfig = new YamlConfiguration();
+                Main.plugin.PlayerDataConfig.load(new File(Main.plugin.getDataFolder() + File.separator + "PlayerData" + File.separator + player.getName() + ".yml"));
+                ps.manaCurrent = Main.plugin.PlayerDataConfig.getDouble("extra.mana");
+            } catch (IOException | InvalidConfigurationException e) {
+                System.out.println("*********** Failed to load player data for " + player.getName() + " when logging in! ***********");
+            }
+        });
+        mysql.SQLConnection();
+        Bukkit.getOnlinePlayers().forEach((player) -> {
+            try {
+                getPlayerStats(player);
+                StatsSaveAPI.saveAllStats(player);
                 StatsSaveAPI.setAllStats(player);
             } catch (SQLException ex) {
                 Logger.getLogger(Main.class.getName()).log(Level.SEVERE, "Can't set the stats to the player " + player.getName() + " the error code is: " + ex.getErrorCode(), ex.getCause());
             }
-        }
+        });
+        scoreboard = Bukkit.getServer().getScoreboardManager().getMainScoreboard();
+        scoreboard.registerNewTeam("BlueCT");
+        scoreboard.registerNewTeam("RedCT");
+        scoreboard.registerNewTeam("YellowCT");
+        scoreboard.getTeam("BlueCT").setPrefix(ChatColor.BLUE + "");
+        scoreboard.getTeam("RedCT").setPrefix(ChatColor.RED + "");
+        scoreboard.getTeam("YellowCT").setPrefix(ChatColor.YELLOW + "");
     }
 
     @Override
     public void onDisable() {
+        if (scoreboard != null) {
+            scoreboard.getTeam("BlueCT").unregister();
+            scoreboard.getTeam("RedCT").unregister();
+            scoreboard.getTeam("YellowCT").unregister();
+        }
         Bukkit.getScheduler().cancelTasks(this);
-        for (Map.Entry<Player, BossBar> m : manaBar.entrySet()) {
+        manaBar.entrySet().forEach((m) -> {
             m.getValue().removeAll();
-        }
-        for (Player player : Bukkit.getOnlinePlayers()) {
-            if (new File(Main.plugin.getDataFolder() + File.separator + "PlayerData" + File.separator + player.getName() + ".yml").exists()) {
-                try {
-                    PlayerStats ps = Main.plugin.getPlayerStats(player);
-                    Main.plugin.PlayerDataConfig = new YamlConfiguration();
-                    Main.plugin.PlayerDataConfig.load(new File(Main.plugin.getDataFolder() + File.separator + "PlayerData" + File.separator + player.getName() + ".yml"));
-                    Main.plugin.PlayerDataConfig.set("extra.logoutHealth", Math.round(player.getHealth()));
-                    Main.plugin.PlayerDataConfig.set("extra.maxHealth", Math.round(player.getMaxHealth()));
-                    Main.plugin.PlayerDataConfig.set("extra.hunger", player.getFoodLevel());
-                    Main.plugin.PlayerDataConfig.set("extra.xp", player.getExp());
-                    Main.plugin.PlayerDataConfig.set("extra.level", player.getLevel());
-                    Main.plugin.PlayerDataConfig.set("extra.mana", ps.manaCurrent);
-                    Main.plugin.PlayerDataConfig.set("extra.combatLogVisible", Main.plugin.combatLogVisible.get(player.getName()));
-                    Main.plugin.PlayerDataConfig.save(Main.plugin.getDataFolder() + File.separator + "PlayerData" + File.separator + player.getName() + ".yml");
-                } catch (IOException | InvalidConfigurationException e) {
-                    System.out.println("*********** Failed to save player data for " + player.getName() + " when logging out! ***********");
-                }
+        });
+        Bukkit.getOnlinePlayers().stream().filter((player) -> (new File(Main.plugin.getDataFolder() + File.separator + "PlayerData" + File.separator + player.getName() + ".yml").exists())).forEachOrdered((player) -> {
+            try {
+                PlayerStats ps = Main.plugin.getPlayerStats(player);
+                Main.plugin.PlayerDataConfig = new YamlConfiguration();
+                Main.plugin.PlayerDataConfig.load(new File(Main.plugin.getDataFolder() + File.separator + "PlayerData" + File.separator + player.getName() + ".yml"));
+                Main.plugin.PlayerDataConfig.set("extra.logoutHealth", Math.round(player.getHealth()));
+                Main.plugin.PlayerDataConfig.set("extra.maxHealth", Math.round(player.getMaxHealth()));
+                Main.plugin.PlayerDataConfig.set("extra.hunger", player.getFoodLevel());
+                Main.plugin.PlayerDataConfig.set("extra.xp", player.getExp());
+                Main.plugin.PlayerDataConfig.set("extra.level", player.getLevel());
+                Main.plugin.PlayerDataConfig.set("extra.mana", ps.manaCurrent);
+                Main.plugin.PlayerDataConfig.set("extra.combatLogVisible", Main.plugin.combatLogVisible.get(player.getName()));
+                Main.plugin.PlayerDataConfig.save(Main.plugin.getDataFolder() + File.separator + "PlayerData" + File.separator + player.getName() + ".yml");
+            } catch (IOException | InvalidConfigurationException e) {
+                System.out.println("*********** Failed to save player data for " + player.getName() + " when logging out! ***********");
             }
-        }
-
-        console.sendMessage(String.format("[%s] Disabled Version %s", new Object[]{
-            getDescription().getName(), getDescription().getVersion()
+        });
+        log(String.format("Disabled Version %s", new Object[]{
+            getDescription().getVersion()
         }));
+        Bukkit.getOnlinePlayers().forEach((player) -> {
+            try {
+                getPlayerStats(player);
+                StatsSaveAPI.saveAllStats(player);
+            } catch (SQLException ex) {
+                Logger.getLogger(Main.class.getName()).log(Level.SEVERE, "Can't set the stats to the player " + player.getName() + " the error code is: " + ex.getErrorCode(), ex.getCause());
+            }
+        });
     }
 
     public void loadManagers() {
         if (!messagesFile.exists()) {
             copy(getResource("messages.yml"), messagesFile);
         }
-        if (!mysqlFile.exists()) {
-            copy(getResource("MySQL.yml"), mysqlFile);
-        }
+        messages = YamlConfiguration.loadConfiguration(messagesFile);
         checkDependencies();
-        mysql.SQLConnection();
-        Bukkit.getServer().getScheduler().runTaskTimerAsynchronously(this, () -> {
-            console.sendMessage(plugin.rep("%prefix% Checking the database connection ..."));
-            if (mysql.getConnection() == null) {
-                console.sendMessage(plugin.rep("%prefix% The database connection is null, reconnecting ..."));
-            } else {
-                console.sendMessage(plugin.rep("%prefix% The connection to the database is still active."));
-            }
-        }, 0L, checkdb);
-        
     }
 
     public void checkDependencies() {
-        if (Bukkit.getServer().getPluginManager().getPlugin("ActionBarAPI") != null) {
-            console.sendMessage(rep("&8[&cLoncoLoreItems&8] &7Successfully found and hooked into ActionBarAPI."));
-        } else {
-            console.sendMessage(rep("&8[&cLoncoLoreItems&8] &7Unable to find ActionBarAPI, you need this API to run this plugin ..."));
-            console.sendMessage(rep("                 &7You can download this in &chttps://www.spigotmc.org/resources/1315/"));
-            Bukkit.getServer().getPluginManager().disablePlugin(this);
-        }
-        if (Bukkit.getServer().getPluginManager().getPlugin("EffectLib") != null) {
-            console.sendMessage(rep("&8[&cLoncoLoreItems&8] &7Successfully found and hooked into EffectLib."));
-        } else {
-            console.sendMessage(rep("&8[&cLoncoLoreItems&8] &7Unable to find EffectLib, you need this API to run this plugin ..."));
-            Bukkit.getServer().getPluginManager().disablePlugin(this);
-        }
         if (Bukkit.getServer().getPluginManager().getPlugin("PlaceholderAPI") != null) {
             placeholderAPI = new PlaceholderAPI(this);
             placeholderAPI.hook();
-            console.sendMessage(rep("&8[&cLoncoLoreItems&8] &7Successfully found and hooked into PlaceholderAPI."));
+            log("Successfully found and hooked into PlaceholderAPI.");
         } else {
-            console.sendMessage(rep("&8[&cLoncoLoreItems&8] &7Unable to find PlaceholderAPI."));
-        }
-        if (Bukkit.getServer().getPluginManager().getPlugin("MVdWPlaceholderAPI") != null) {
-            MVdWPlaceholderAPIHook.hook(this);
-            console.sendMessage(rep("&8[&cLoncoLoreItems&8] &7Successfully found and hooked into MVdWPlaceholderAPI."));
-        } else {
-            console.sendMessage(rep("&8[&cLoncoLoreItems&8] &7Unable to find MVdWPlaceholderAPI."));
+            log("Unable to find PlaceholderAPI.");
         }
         if (getWorldGuard() != null) {
-            console.sendMessage(rep("&8[&cLoncoLoreItems&8] &7Successfully found and hooked into WorldGuard."));
+            log("Successfully found and hooked into WorldGuard.");
         } else {
-            console.sendMessage(rep("&8[&cLoncoLoreItems&8] &7Unable to find WorldGuard!"));
+            log("Unable to find WorldGuard!");
         }
         if (getVault() != null) {
-            console.sendMessage(rep("&8[&cLoncoLoreItems&8] &7Successfully found and hooked into Vault."));
+            log("Successfully found and hooked into Vault.");
         } else {
-            console.sendMessage(rep("&8[&cLoncoLoreItems&8] &7Unable to find Vault!"));
+            log("Unable to find Vault!");
         }
         if (getCitizens() != null) {
-            console.sendMessage(rep("&8[&cLoncoLoreItems&8] &7Successfully found and hooked into Citizens."));
+            log("Successfully found and hooked into Citizens.");
         } else {
-            console.sendMessage(rep("&8[&cLoncoLoreItems&8] &7Unable to find Citizens!"));
+            log("Unable to find Citizens!");
         }
     }
 
@@ -447,23 +449,23 @@ public class Main extends org.bukkit.plugin.java.JavaPlugin {
     }
 
     public boolean isSword(ItemStack item) {
-        return (item.equals(Material.WOOD_SWORD)) || (item.equals(Material.STONE_SWORD)) || (item.equals(Material.IRON_SWORD)) || (item.equals(Material.GOLD_SWORD)) || (item.equals(Material.DIAMOND_SWORD));
+        return (item.equals(new ItemStack(Material.WOOD_SWORD)) || (item.equals(new ItemStack(Material.STONE_SWORD))) || (item.equals(new ItemStack(Material.IRON_SWORD))) || (item.equals(new ItemStack(Material.GOLD_SWORD))) || (item.equals(new ItemStack(Material.DIAMOND_SWORD))));
     }
 
     public boolean isHoe(ItemStack item) {
-        return (item.equals(Material.WOOD_HOE)) || (item.equals(Material.STONE_HOE)) || (item.equals(Material.IRON_HOE)) || (item.equals(Material.GOLD_HOE)) || (item.equals(Material.DIAMOND_HOE));
+        return (item.equals(new ItemStack(Material.WOOD_HOE)) || (item.equals(new ItemStack(Material.STONE_HOE))) || (item.equals(new ItemStack(Material.IRON_HOE))) || (item.equals(new ItemStack(Material.GOLD_HOE))) || (item.equals(new ItemStack(Material.DIAMOND_HOE))));
     }
 
     public boolean isAxe(ItemStack item) {
-        return (item.equals(Material.WOOD_AXE)) || (item.equals(Material.STONE_AXE)) || (item.equals(Material.IRON_AXE)) || (item.equals(Material.GOLD_AXE)) || (item.equals(Material.DIAMOND_AXE));
+        return (item.equals(new ItemStack(Material.WOOD_AXE)) || (item.equals(new ItemStack(Material.STONE_AXE))) || (item.equals(new ItemStack(Material.IRON_AXE))) || (item.equals(new ItemStack(Material.GOLD_AXE))) || (item.equals(new ItemStack(Material.DIAMOND_AXE))));
     }
 
     public boolean isPickAxe(ItemStack item) {
-        return (item.equals(Material.WOOD_PICKAXE)) || (item.equals(Material.STONE_PICKAXE)) || (item.equals(Material.IRON_PICKAXE)) || (item.equals(Material.GOLD_PICKAXE)) || (item.equals(Material.DIAMOND_PICKAXE));
+        return (item.equals(new ItemStack(Material.WOOD_PICKAXE)) || (item.equals(new ItemStack(Material.STONE_PICKAXE))) || (item.equals(new ItemStack(Material.IRON_PICKAXE))) || (item.equals(new ItemStack(Material.GOLD_PICKAXE))) || (item.equals(new ItemStack(Material.DIAMOND_PICKAXE))));
     }
 
     public boolean isSpade(ItemStack item) {
-        return (item.equals(Material.WOOD_SPADE)) || (item.equals(Material.STONE_SPADE)) || (item.equals(Material.IRON_SPADE)) || (item.equals(Material.GOLD_SPADE)) || (item.equals(Material.DIAMOND_SPADE));
+        return (item.equals(new ItemStack(Material.WOOD_SPADE)) || (item.equals(new ItemStack(Material.STONE_SPADE))) || (item.equals(new ItemStack(Material.IRON_SPADE))) || (item.equals(new ItemStack(Material.GOLD_SPADE))) || (item.equals(new ItemStack(Material.DIAMOND_SPADE))));
     }
 
     @Override
@@ -496,26 +498,26 @@ public class Main extends org.bukkit.plugin.java.JavaPlugin {
                         sender.sendMessage(this.util_GetResponse.getResponse("ErrorMessages.PermissionDeniedError", null, null, "", ""));
                     }
                 } else {
-                    console.sendMessage("Item Lore Stats commands:");
-                    console.sendMessage("   /ils");
-                    console.sendMessage("   /ils reload");
-                    console.sendMessage("   /ils stats");
-                    console.sendMessage("   /ils version");
-                    console.sendMessage("   /ils name <text>");
-                    console.sendMessage("   /ils lore <player_name> <line#> <text>");
-                    console.sendMessage("   /ils give <player_name> <item_name>");
-                    console.sendMessage("   /ils give <player_name> <item_name>, <new_item_name>");
-                    console.sendMessage("   /ils custom tool <Item Type Name>");
-                    console.sendMessage("   /ils custom armour helmet/chest/legs/boots <Item Type Name>");
-                    console.sendMessage("   /ils repair");
-                    console.sendMessage("   /ils upgrade hand");
-                    console.sendMessage("   /ils upgrade armour");
-                    console.sendMessage("   /ils upgrade all");
-                    console.sendMessage("   /ils combatLog");
-                    console.sendMessage("   /ils sell");
-                    console.sendMessage("   /ils export <item_name>");
-                    console.sendMessage("   /ils setMultiplier");
-                    console.sendMessage("   /ils remake <lvl>");
+                    log("Item Lore Stats commands:");
+                    log("   /ils");
+                    log("   /ils reload");
+                    log("   /ils stats");
+                    log("   /ils version");
+                    log("   /ils name <text>");
+                    log("   /ils lore <player_name> <line#> <text>");
+                    log("   /ils give <player_name> <item_name>");
+                    log("   /ils give <player_name> <item_name>, <new_item_name>");
+                    log("   /ils custom tool <Item Type Name>");
+                    log("   /ils custom armour helmet/chest/legs/boots <Item Type Name>");
+                    log("   /ils repair");
+                    log("   /ils upgrade hand");
+                    log("   /ils upgrade armour");
+                    log("   /ils upgrade all");
+                    log("   /ils combatLog");
+                    log("   /ils sell");
+                    log("   /ils export <item_name>");
+                    log("   /ils setMultiplier");
+                    log("   /ils remake <lvl>");
                 }
             }
 
@@ -565,7 +567,7 @@ public class Main extends org.bukkit.plugin.java.JavaPlugin {
                         return true;
                     }
                     reloadConfig();
-                    console.sendMessage(rep("&8[&cLoncoLoreItems&8] &7Configuration Reloaded!"));
+                    log(rep("&8[&cLoncoLoreItems&8] &7Configuration Reloaded!"));
                 }
 
                 if (args[0].equalsIgnoreCase("createlore")) {
@@ -586,7 +588,7 @@ public class Main extends org.bukkit.plugin.java.JavaPlugin {
                             player.sendMessage(this.util_GetResponse.getResponse("ErrorMessages.PermissionDeniedError", null, null, "", ""));
                         }
                     } else {
-                        console.sendMessage("[ILS]" + this.util_GetResponse.getResponse("ErrorMessages.IngameOnlyError", null, null, "", ""));
+                        log("[ILS]" + this.util_GetResponse.getResponse("ErrorMessages.IngameOnlyError", null, null, "", ""));
                     }
                 } else if (args[0].equalsIgnoreCase("stats")) {
                     if ((sender instanceof Player)) {
@@ -595,7 +597,7 @@ public class Main extends org.bukkit.plugin.java.JavaPlugin {
 
                         characterSheet.returnStats(player, getHealthValue(player));
                     } else {
-                        console.sendMessage("[ILS]" + this.util_GetResponse.getResponse("ErrorMessages.IngameOnlyError", null, null, "", ""));
+                        log("[ILS]" + this.util_GetResponse.getResponse("ErrorMessages.IngameOnlyError", null, null, "", ""));
                     }
                 } else if (args[0].equalsIgnoreCase("combatlog")) {
                     if ((sender instanceof Player)) {
@@ -622,32 +624,32 @@ public class Main extends org.bukkit.plugin.java.JavaPlugin {
 
                                 this.PlayerDataConfig.save(plugin.getDataFolder() + File.separator + "PlayerData" + File.separator + player.getName() + ".yml");
                             } catch (IOException | InvalidConfigurationException e) {
-                                console.sendMessage("*********** Failed to load player data for " + player.getName() + " when toggling combat log! ***********");
+                                log("*********** Failed to load player data for " + player.getName() + " when toggling combat log! ***********");
                             }
                         }
                     } else {
-                        console.sendMessage("[ILS]" + this.util_GetResponse.getResponse("ErrorMessages.IngameOnlyError", null, null, "", ""));
+                        log("[ILS]" + this.util_GetResponse.getResponse("ErrorMessages.IngameOnlyError", null, null, "", ""));
                     }
                 } else if (args[0].equalsIgnoreCase("sell")) {
                     if ((sender instanceof Player)) {
                         Player player = (Player) sender;
                         this.util_Vault.removeMoneyForSale(player, itemInMainHand(player).getAmount());
                     } else {
-                        console.sendMessage("[ILS]" + this.util_GetResponse.getResponse("ErrorMessages.IngameOnlyError", null, null, "", ""));
+                        log("[ILS]" + this.util_GetResponse.getResponse("ErrorMessages.IngameOnlyError", null, null, "", ""));
                     }
                 } else if (args[0].equalsIgnoreCase("health")) {
                     if ((sender instanceof Player)) {
                         Player player = (Player) sender;
                         player.sendMessage(ChatColor.RED + "[DEBUGGER] " + ChatColor.WHITE + player.getHealth() + " out of " + player.getMaxHealth());
                     } else {
-                        console.sendMessage("[ILS]" + this.util_GetResponse.getResponse("ErrorMessages.IngameOnlyError", null, null, "", ""));
+                        log("[ILS]" + this.util_GetResponse.getResponse("ErrorMessages.IngameOnlyError", null, null, "", ""));
                     }
                 } else if (args[0].equalsIgnoreCase("speed")) {
                     if ((sender instanceof Player)) {
                         Player player = (Player) sender;
                         player.sendMessage(ChatColor.GOLD + "Your movement speed is " + ChatColor.WHITE + player.getWalkSpeed());
                     } else {
-                        console.sendMessage("[ILS]" + this.util_GetResponse.getResponse("ErrorMessages.IngameOnlyError", null, null, "", ""));
+                        log("[ILS]" + this.util_GetResponse.getResponse("ErrorMessages.IngameOnlyError", null, null, "", ""));
                     }
                 } else if (args[0].equalsIgnoreCase("upgrade")) {
                     if ((sender instanceof Player)) {
@@ -690,7 +692,7 @@ public class Main extends org.bukkit.plugin.java.JavaPlugin {
                             player.sendMessage(this.util_GetResponse.getResponse("ErrorMessages.PermissionDeniedError", null, null, "", ""));
                         }
                     } else {
-                        console.sendMessage("[ILS]" + this.util_GetResponse.getResponse("ErrorMessages.IngameOnlyError", null, null, "", ""));
+                        log("[ILS]" + this.util_GetResponse.getResponse("ErrorMessages.IngameOnlyError", null, null, "", ""));
                     }
                 } else if (args[0].equalsIgnoreCase("zombie")) {
                     if ((sender instanceof Player)) {
@@ -721,7 +723,7 @@ public class Main extends org.bukkit.plugin.java.JavaPlugin {
                             mob.setCustomNameVisible(true);
                         }
                     } else {
-                        console.sendMessage("[ILS]" + this.util_GetResponse.getResponse("ErrorMessages.IngameOnlyError", null, null, "", ""));
+                        log("[ILS]" + this.util_GetResponse.getResponse("ErrorMessages.IngameOnlyError", null, null, "", ""));
                     }
                 } else if (args[0].equalsIgnoreCase("skeleton")) {
                     if ((sender instanceof Player)) {
@@ -752,13 +754,13 @@ public class Main extends org.bukkit.plugin.java.JavaPlugin {
                             mob.setCustomNameVisible(true);
                         }
                     } else {
-                        console.sendMessage("[ILS]" + this.util_GetResponse.getResponse("ErrorMessages.IngameOnlyError", null, null, "", ""));
+                        log("[ILS]" + this.util_GetResponse.getResponse("ErrorMessages.IngameOnlyError", null, null, "", ""));
                     }
                 } else if (args[0].equalsIgnoreCase("test")) {
                     Player player = (Player) sender;
 
-                    console.sendMessage("" + player.getInventory().getItemInMainHand().getData());
-                    console.sendMessage("" + player.getInventory().getItemInMainHand().getDurability());
+                    log("" + player.getInventory().getItemInMainHand().getData());
+                    log("" + player.getInventory().getItemInMainHand().getDurability());
                 }
             }
         }
@@ -848,6 +850,7 @@ public class Main extends org.bukkit.plugin.java.JavaPlugin {
     }
 
     public void updatePlayerSpeed(Player player) {
+        /*
         if (!getConfig().getStringList("disabledInWorlds").contains(player.getWorld().getName())) {
             final Player playerFinal = player;
 
@@ -871,6 +874,7 @@ public class Main extends org.bukkit.plugin.java.JavaPlugin {
         } else {
             player.setWalkSpeed((float) plugin.getConfig().getDouble("baseMovementSpeed"));
         }
+         */
     }
 
     public void copy(InputStream in, File file) {
@@ -883,12 +887,15 @@ public class Main extends org.bukkit.plugin.java.JavaPlugin {
             }
             out.close();
             in.close();
-        } catch (Exception e) {
+        } catch (IOException e) {
             Logger.getLogger(Main.class.getName()).log(Level.SEVERE, "Can't copy the file " + file.getName() + " to the plugin data folder.", e.getCause());
         }
     }
 
     public String rep(String str) {
+        if (str == null) {
+            return "";
+        }
         return str
                 .replaceAll("%prefix%", getMessages().getString("Prefix"))
                 .replaceAll("&", "§");
@@ -908,5 +915,13 @@ public class Main extends org.bukkit.plugin.java.JavaPlugin {
             playersStats.put(player.getUniqueId(), ps);
             return ps;
         }
+    }
+
+    public void setPlayerStats(PlayerStats ps) {
+        playersStats.put(ps.player.getUniqueId(), ps);
+    }
+
+    public void log(String msg) {
+        console.sendMessage(rep("&8[&cLoncoLoreItems&8] &7" + msg));
     }
 }

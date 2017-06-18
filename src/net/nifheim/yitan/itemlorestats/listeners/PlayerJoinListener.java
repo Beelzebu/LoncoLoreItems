@@ -2,19 +2,16 @@ package net.nifheim.yitan.itemlorestats.listeners;
 
 import java.io.File;
 import java.io.IOException;
-import java.sql.Connection;
-import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.Statement;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+
 import net.nifheim.beelzebu.rpgcore.utils.StatsSaveAPI;
 import net.nifheim.yitan.itemlorestats.Main;
 import net.nifheim.yitan.itemlorestats.PlayerStats;
 import org.bukkit.Bukkit;
 
 import org.bukkit.configuration.InvalidConfigurationException;
-import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -23,18 +20,25 @@ import org.bukkit.event.player.PlayerJoinEvent;
 
 public class PlayerJoinListener implements Listener {
 
-    Main plugin;
-    File mysqlFile;
-    FileConfiguration sqlconf;
+    private final Main plugin;
+    private static PlayerStats ps;
 
+    public PlayerJoinListener(Main main) {
+        plugin = main;
+    }
+    
     @EventHandler
     public void onPlayerJoin(PlayerJoinEvent event) {
         final Player playerFinal = event.getPlayer();
+        ps = new PlayerStats(playerFinal);
 
-        Main.plugin.getServer().getScheduler().runTaskLaterAsynchronously(Main.plugin, () -> {
-            PlayerStats ps = new PlayerStats(playerFinal);
-            ps.UpdateAll();
+        // Async tasks
+        plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> {
             Main.plugin.playersStats.put(playerFinal.getUniqueId(), ps);
+        });
+
+        // Later async tasks
+        Main.plugin.getServer().getScheduler().runTaskLaterAsynchronously(Main.plugin, () -> {
             if (!new File(Main.plugin.getDataFolder() + File.separator + "PlayerData" + File.separator + playerFinal.getName() + ".yml").exists()) {
                 try {
 
@@ -48,7 +52,7 @@ public class PlayerJoinListener implements Listener {
                     Main.plugin.PlayerDataConfig.set("extra.xp", 0.0F);
                     Main.plugin.PlayerDataConfig.set("extra.level", 0);
                     Main.plugin.PlayerDataConfig.save(Main.plugin.getDataFolder() + File.separator + "PlayerData" + File.separator + playerFinal.getName() + ".yml");
-                } catch (Exception e) {
+                } catch (IOException e) {
                     System.out.println("*********** Failed to save player data for " + playerFinal.getName() + " when logging in! ***********");
                 }
             } else if (new File(Main.plugin.getDataFolder() + File.separator + "PlayerData" + File.separator + playerFinal.getName() + ".yml").exists()) {
@@ -79,31 +83,9 @@ public class PlayerJoinListener implements Listener {
 
             Main.plugin.updateHealth(playerFinal);
             Main.plugin.updatePlayerSpeed(playerFinal);
-        }, 5L);
-        //plugin.activateEnchant.onJoin(playerFinal);
-
-        // SQL Stats
-        sqlconf = YamlConfiguration.loadConfiguration(plugin.mysqlFile);
-        String prefix = sqlconf.getString("MySQL.Prefix");
-        Bukkit.getServer().getScheduler().runTaskLaterAsynchronously(Main.getInstance(), () -> {
             try {
-                Player p = event.getPlayer();
-                String name;
-                name = p.getUniqueId().toString();
-
-                Connection c = plugin.mysql.getConnection();
-                Statement check = c.createStatement();
-                ResultSet res = check.executeQuery("SELECT uuid FROM " + prefix + "Data WHERE uuid = '" + name + "';");
-                if (!res.next()) {
-                    Statement update = c.createStatement();
-                    update.executeUpdate("INSERT INTO " + prefix + "Characters VALUES ('null, " + name + "', '" + p.getName() + "', 20, 1, 100, 0, 0, 0, 0);");
-                    StatsSaveAPI.setAllStats(p);
-                } else {
-                    Statement update = c.createStatement();
-                    //update.executeUpdate("UPDATE " + prefix + "Data SET nick = " + p.getName() + " WHERE uuid = '" + name + "';");
-                    StatsSaveAPI.setAllStats(p);
-                }
-
+		//                StatsSaveAPI.saveAllStats(event.getPlayer());
+                StatsSaveAPI.setAllStats(event.getPlayer());
             } catch (SQLException ex) {
                 if (ex.getSQLState().equals("closed")) {
                     Logger.getLogger(PlayerJoinListener.class.getName()).log(Level.WARNING, "Seems that the database connection is closed.");
@@ -111,6 +93,11 @@ public class PlayerJoinListener implements Listener {
                     Logger.getLogger(PlayerJoinListener.class.getName()).log(Level.WARNING, "Something was wrong executing this query, the error code is: " + ex.getErrorCode(), ex.getCause());
                 }
             }
-        }, 5L);
+        }, 3L);
+        //plugin.activateEnchant.onJoin(playerFinal);
+
+        Bukkit.getServer().getScheduler().runTaskLater(Main.getInstance(), () -> {
+            ps.UpdateAll();
+        }, 6L);
     }
 }
